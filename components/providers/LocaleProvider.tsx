@@ -23,7 +23,7 @@ import { type Locale } from '@/lib/locale';
  */
 
 const LOCALE_STORAGE_KEY = 'quixoticmaker-locale';
-const DEFAULT_LOCALE: Locale = 'zh';
+const DEFAULT_LOCALE: Locale = 'en';
 
 interface LocaleContextValue {
   locale: Locale;
@@ -42,6 +42,15 @@ export function useLocale(): LocaleContextValue {
     throw new Error('useLocale must be used within a LocaleProvider');
   }
   return context;
+}
+
+/**
+ * Safe locale reader for components that may render outside a LocaleProvider
+ * (e.g. in tests). Falls back to the default locale instead of throwing.
+ */
+export function useLocaleValue(): Locale {
+  const context = useContext(LocaleContext);
+  return context?.locale ?? DEFAULT_LOCALE;
 }
 
 interface LocaleProviderProps {

@@ -9,29 +9,8 @@
 'use client';
 
 import { type ReactNode } from 'react';
-import { type Bilingual as BilingualType, type Locale, resolveContent } from '@/lib/locale';
-
-// Hook placeholder for task 8.2 (LocaleProvider, concurrent).
-// If LocaleProvider is not yet available, this provides a safe default.
-function useLocale(): Locale {
-  // Check if LocaleProvider context is available
-  try {
-    // This will be replaced when LocaleProvider from task 8.2 is implemented
-    // For now, return a default locale
-    if (typeof window !== 'undefined') {
-      // Try to get from localStorage as a fallback
-      const stored = localStorage.getItem('locale');
-      if (stored === 'zh' || stored === 'en') {
-        return stored;
-      }
-    }
-  } catch {
-    // localStorage may not be available
-  }
-  
-  // Default to English
-  return 'en';
-}
+import { type Bilingual as BilingualType, resolveContent } from '@/lib/locale';
+import { useLocaleValue } from '@/components/providers/LocaleProvider';
 
 interface BilingualProps {
   /** The bilingual content to render. Can be string or ReactNode. */
@@ -73,7 +52,7 @@ export function Bilingual({
   className,
   as: Component = 'div',
 }: BilingualProps) {
-  const locale = useLocale();
+  const locale = useLocaleValue();
 
   if (mode === 'single') {
     // Single-locale mode: render only the active-locale content
