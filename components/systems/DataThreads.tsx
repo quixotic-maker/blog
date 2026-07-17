@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useScroll, useTransform, motion } from 'framer-motion';
+import { useScroll, motion } from 'framer-motion';
 import { activeMetrics, type SectionContext } from '@/lib/dataThread';
 import { useReducedMotion } from '@/components/providers/MotionProvider';
 import { resolveMotion } from '@/lib/motion';

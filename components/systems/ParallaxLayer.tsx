@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, type ReactNode, type CSSProperties } from 'react';
-import { useScroll, useTransform, motion } from 'framer-motion';
+import { useScroll, motion } from 'framer-motion';
 import { layerOffset, scrollOffset, type Vec2 } from '@/lib/parallax';
 import { useReducedMotion, useIsMobile } from '@/components/providers/MotionProvider';
 

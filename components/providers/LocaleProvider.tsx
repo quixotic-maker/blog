@@ -7,7 +7,7 @@ import {
   useEffect,
   type ReactNode,
 } from 'react';
-import { toggleLocale, type Locale } from '@/lib/locale';
+import { type Locale } from '@/lib/locale';
 
 /**
  * LocaleProvider — React context provider for the Locale System.

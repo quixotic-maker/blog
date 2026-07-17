@@ -18,7 +18,6 @@
 
 import { motion } from 'framer-motion';
 import { useReducedMotion } from '@/components/providers/MotionProvider';
-import { resolveMotion } from '@/lib/motion';
 import { useMemo } from 'react';
 
 export interface OscilloscopeMotifProps {
@@ -88,7 +87,6 @@ export function OscilloscopeMotif({
   height = 200,
 }: OscilloscopeMotifProps) {
   const reducedMotion = useReducedMotion();
-  const motionConfig = resolveMotion('sectionEnter', reducedMotion);
 
   // Generate three waveform paths with different frequencies for visual interest
   const waveforms = useMemo(() => {
