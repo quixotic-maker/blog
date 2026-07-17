@@ -1,0 +1,27 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AnnotationStamp > matches structural snapshot for accent variant 1`] = `
+<span
+  class="inline-flex items-center font-mono text-xs uppercase tracking-wider px-2 py-1 border border-accent text-accent "
+  style="font-variant-numeric: tabular-nums;"
+>
+  PRODUCTION
+</span>
+`;
+
+exports[`AnnotationStamp > matches structural snapshot for default variant 1`] = `
+<span
+  class="inline-flex items-center font-mono text-xs uppercase tracking-wider px-2 py-1 border border-gray text-gray "
+  style="font-variant-numeric: tabular-nums;"
+>
+  VERIFIED
+</span>
+`;
+
+exports[`AnnotationStamp > matches structural snapshot for inline variant 1`] = `
+<span
+  class="inline-flex items-center font-mono text-xs uppercase tracking-wider border-0 text-gray "
+>
+  NOTE
+</span>
+`;

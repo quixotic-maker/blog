@@ -1,0 +1,35 @@
+# Architecture Overview
+
+Jarvis is a multi-agent coordination hub that decouples large-language-model semantic understanding from complex task execution. Rather than embedding task logic directly into LLM prompts or API calls, Jarvis provides a unified coordination layer that routes conversational intent to specialized domain agents, transforming conversational AI into reliable, trackable, and traceable task execution.
+
+## Design Philosophy
+
+The core architectural insight is **two-stage intent recognition**: keyword matching runs first, and the system falls back to the large language model only when confidence drops below 0.8. This hybrid approach delivers both speed and semantic flexibility — simple, frequent commands resolve instantly via pattern matching, while ambiguous or novel requests leverage the model's reasoning without paying the latency and cost penalty on every interaction.
+
+## Semantic Caching
+
+To further minimize latency and cost, Jarvis implements **semantic caching in Redis** using an md5 key derived from the normalized user input. Each cache entry carries a time-to-live of 3600 seconds. When a semantically identical request arrives within the TTL window, the system retrieves the cached intent and skips the LLM call entirely, cutting P95 response time for repeated queries by more than half.
+
+## Asynchronous Task Engine
+
+The execution layer is an **asyncio priority queue** with four priority levels: CRITICAL, HIGH, NORMAL, and LOW. Ten worker coroutines pull tasks from the queue, with a semaphore limit of 100 concurrent operations to prevent resource exhaustion. Dual-layer timeout guardrails apply: a 60-second global timeout at the task envelope level, and per-agent timeouts that agents declare as part of their registration contract.
+
+This architecture ensures that high-priority tasks (user-facing responses, time-sensitive alerts) preempt batch or background work, and that no single misbehaving agent can block the queue.
+
+## Agent Abstraction and Registry
+
+All 18 domain agents inherit from a **unified BaseAgent abstraction**, which defines the contract every agent must satisfy: a unique identifier, a set of capability keywords, an execute method, and declared timeout and retry policy. The central **AgentRegistry** manages the agent lifecycle: registration, capability lookup, runtime hot-reload (agents can be updated or added without restarting the coordinator), and automatic fallback (if an agent fails its health check, the registry routes requests to a fallback agent or returns a graceful error).
+
+This abstraction eliminates brittle, agent-specific dispatch logic and makes Jarvis an extensible capability hub rather than a hardcoded task orchestrator.
+
+## Retry Policy and Latency Target
+
+Each agent declares a retry policy; the default is **three retries with 0-, 2-, and 4-second exponential backoff**. Transient failures (network timeouts, rate limits) are absorbed by the retry layer, while persistent failures bubble up as a structured error response. The system targets a **sub-200-millisecond P95 latency** for end-to-end request handling, measured from intent receipt to task dispatch.
+
+## Technology Stack
+
+The implementation is built on **Python 3.11 asyncio** for cooperative concurrency, **FastAPI** for the HTTP API layer, **PostgreSQL with JSONB columns** for structured task and agent state, **Redis** for semantic caching and inter-process signaling, **Prometheus** for metrics export, and **Docker** for containerized deployment. The async-native design saturates CPU and I/O more efficiently than threaded or process-pool models, and the Prometheus integration exposes latency histograms, queue depth, and per-agent success rates for real-time observability.
+
+## Value Statement
+
+Jarvis turns conversational AI into reliable, trackable, and traceable task execution. By decoupling semantic understanding from task orchestration, it provides an extensible capability hub with fault-tolerant scheduling, making it straightforward to add new agents, swap LLM providers, or scale horizontally as task volume grows. The architecture prioritizes observability, graceful degradation, and operational simplicity over monolithic agent frameworks that tangle intent recognition with business logic.

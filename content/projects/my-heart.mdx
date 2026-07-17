@@ -1,0 +1,181 @@
+# My Heart / Mochi
+
+## Overview
+
+My Heart (Mochi) is an end-side voice-to-action closed-loop embodied interaction product. It bridges semantic voice commands to physical hardware execution without cloud dependencies, demonstrating software-hardware integration through a complete pipeline: voice activity detection, automatic speech recognition, large language model reasoning, gesture keyword routing, and dual-DOF servo control via UART serial protocol.
+
+The system operates entirely on-device, processing voice input through local Whisper ASR, maintaining conversational context with a sliding 10-turn window, routing commands to physical actions, and delivering audio feedback through Edge TTS. This architecture eliminates cloud latency and enables reliable real-time interaction in offline environments.
+
+## End-to-End State Machine
+
+The interaction pipeline is governed by a deterministic state machine with five states:
+
+- **IDLE** — waiting for voice activity
+- **LISTENING** — capturing audio input via microphone VAD
+- **PROCESSING** — running ASR → context assembly → LLM inference → gesture routing
+- **SPEAKING** — playing TTS feedback and executing physical commands
+- **ERROR** — handling timeouts, hardware faults, or unrecognized input
+
+Normal flow: **IDLE → LISTENING → PROCESSING → SPEAKING → IDLE**. The ERROR state branches from any stage and returns to IDLE after logging the failure and playing an error prompt.
+
+This state machine guarantees that only one stage executes at a time, preventing race conditions between audio capture and playback, and ensuring that servo commands are never issued while the microphone is active.
+
+## Eight-Node Data Flow
+
+The complete voice-to-action pipeline consists of eight sequential processing nodes:
+
+### 1. Microphone VAD (Voice Activity Detection)
+
+Audio is captured from the microphone and analyzed in real-time using **RMS energy** thresholding combined with **silence counting**. When RMS energy exceeds the configured threshold for a minimum duration, the system transitions from IDLE to LISTENING. When energy drops below threshold for a silence count limit, the audio segment is finalized and passed to ASR.
+
+This VAD-based automatic segmentation eliminates the need for manual push-to-talk triggers and enables natural conversation flow.
+
+### 2. Local Whisper ASR (Automatic Speech Recognition)
+
+The captured audio segment is transcribed using **Whisper** running locally on the device. The Whisper model is loaded once at startup and performs inference on CPU, returning a text transcript of the user&apos;s speech.
+
+Local ASR ensures zero network dependency and guarantees that voice data never leaves the device, addressing privacy concerns inherent in cloud-based speech services.
+
+### 3. Sliding-Window Context (10-Turn History)
+
+The current transcript is appended to a **sliding window of the last 10 turns** (5 user utterances + 5 assistant responses). This context is maintained in memory as a simple list and passed to the LLM as the conversation history.
+
+When the context exceeds 10 turns, the oldest turn is discarded (FIFO). This bounded memory prevents unbounded context growth while preserving sufficient recent history for coherent multi-turn dialogue.
+
+### 4. OpenAI-Compatible LLM (Switchable via YAML)
+
+The assembled context is sent to an **OpenAI-compatible large language model** endpoint. The LLM service is abstracted behind an interface using the **abstract factory pattern**: the concrete implementation (OpenAI API, local Ollama, or any OpenAI-compatible provider) is specified in a single YAML configuration line.
+
+This decoupling enables vendor swaps without code changes. For example, switching from OpenAI GPT-4 to a local Llama model requires only updating the YAML `llm.provider` and `llm.endpoint` fields.
+
+The LLM returns a natural language response and, optionally, a structured gesture command embedded in its output.
+
+### 5. Gesture Keyword Routing
+
+The LLM response is parsed for **gesture keywords** (e.g., "look_left", "nod", "look_up"). A simple keyword matcher extracts these commands and maps them to physical servo positions.
+
+For example:
+- `"look_left"` → H30 (horizontal servo to 30 degrees)
+- `"look_right"` → H150 (horizontal servo to 150 degrees)
+- `"nod"` → V60 (vertical servo to 60 degrees)
+
+If no gesture keyword is found, the system skips physical execution and proceeds directly to TTS feedback.
+
+### 6. UART Driver (9600 Baud, ASCII Protocol)
+
+Detected gestures are encoded as **ASCII UART commands** and transmitted over the serial port at **9600 baud**. Each command follows a simple text protocol:
+
+```
+H90,V120\n
+```
+
+Where:
+- `H` = horizontal servo angle (0–180)
+- `V` = vertical servo angle (0–180)
+- `\n` = newline terminator
+
+The UART driver enforces **position limits** (0–180 degrees) to prevent hardware damage. Commands are sent synchronously via `pyserial`, with a short timeout to detect communication failures.
+
+### 7. Arduino Firmware (Per-Degree 15ms Interpolation)
+
+The Arduino Nano ATmega328P receives the UART command, parses the `HX,VY` format, and performs **per-degree 15-millisecond step interpolation** to smooth servo motion.
+
+Instead of commanding the servos to jump directly to the target angle (which causes visible jitter and mechanical stress), the firmware increments the servo position one degree at a time with a 15ms delay between steps. This firmware-level interpolation suppresses physical jitter and produces smooth, natural motion.
+
+The firmware operates in a tight loop: read UART → parse command → interpolate to target → repeat. If no command is received within a timeout period, the servos hold their current position.
+
+### 8. Dual-DOF SG90 Servo Control + Edge TTS Feedback
+
+Two **SG90 servos** provide horizontal and vertical degrees of freedom. The servos are controlled via PWM signals generated by the Arduino, with position feedback provided by the servo's internal potentiometer (read but not actively used for closed-loop control in the current implementation).
+
+Simultaneously, the LLM's text response is synthesized into speech using **Edge TTS** and played through the device speaker via `PyAudio`. This audio feedback closes the interaction loop: the user hears the assistant's response while observing the corresponding physical gesture.
+
+**Current limitation:** TTS playback and servo motion are **serial** rather than time-aligned. The system plays TTS, then executes the gesture. True time-aligned action+speech (e.g., nodding while speaking "yes") is a roadmap item.
+
+## Abstract-Factory Service Decoupling
+
+The system architecture decouples heterogeneous services (ASR, LLM, TTS) using the **abstract factory pattern**. Each service is accessed through a stable Python interface, with the concrete implementation selected at runtime based on YAML configuration.
+
+**Service interfaces:**
+- `ASRService` → `transcribe(audio: bytes) -> str`
+- `LLMService` → `generate(context: List[Message]) -> str`
+- `TTSService` → `synthesize(text: str) -> bytes`
+
+**Example configuration swap:**
+
+```yaml
+# Config A: OpenAI cloud services
+llm:
+  provider: openai
+  model: gpt-4
+  endpoint: https://api.openai.com/v1
+
+# Config B: Local Ollama + Whisper
+llm:
+  provider: ollama
+  model: llama3
+  endpoint: http://localhost:11434/v1
+```
+
+Changing the YAML file and restarting the service swaps the entire backend. This design enables:
+- **Vendor independence:** switch from OpenAI to Anthropic, local models, or custom endpoints without code changes
+- **Environment portability:** use cloud APIs in development, local models in production/offline deployments
+- **A/B testing:** compare LLM providers by configuration alone
+
+## Physical Jitter Suppression
+
+Physical jitter (visible shaking or stuttering during servo motion) is suppressed through two mechanisms:
+
+1. **Firmware-level interpolation:** Instead of sending a single "move to 120°" command, the firmware increments position gradually (1° every 15ms), producing smooth motion curves. This pushes the motion-smoothing responsibility down to the hardware layer, where tight timing control is possible.
+
+2. **VAD-based automatic segmentation:** By using RMS energy detection to segment speech, the system avoids abrupt start/stop transitions caused by fixed-length recording windows. The VAD naturally captures complete utterances, reducing the likelihood of truncated commands that would cause confusing or incomplete gestures.
+
+These techniques trade some latency (15ms × N degrees) for significantly improved motion quality. In user testing, interpolated motion was perceived as "natural" compared to direct position commands, which were described as "jerky" or "robotic."
+
+## Technology Stack
+
+- **Python asyncio** — event loop for concurrent audio I/O and service calls
+- **Whisper** — local automatic speech recognition
+- **OpenAI-compatible SDK** — unified client for LLM services
+- **Edge TTS** — Microsoft Edge text-to-speech synthesis
+- **PyAudio** — audio capture and playback
+- **NumPy** — RMS energy calculation for VAD
+- **Arduino Nano ATmega328P** — microcontroller for servo control
+- **SG90 servos** — hobby-grade servos for dual-DOF motion
+- **pyserial** — UART communication library
+- **UART 9600 baud** — serial protocol for Python ↔ Arduino communication
+
+## Honest Roadmap
+
+The current implementation has two known limitations:
+
+1. **TTS playback is a placeholder.** While Edge TTS works, the audio quality and latency are not production-ready. A future version will integrate a lower-latency, higher-quality TTS engine or pre-synthesize common responses.
+
+2. **Action and speech are serial, not time-aligned.** The system plays TTS audio, waits for completion, then executes the servo gesture. True multimodal interaction requires time-aligned execution: speaking "yes" while nodding, for example. This requires refactoring the state machine to support concurrent TTS + servo execution with synchronized timing.
+
+These limitations do not block current use cases (museum guide demonstrations, child companion prototypes) but must be addressed for production deployment in elder care or commercial settings.
+
+## Value Statement
+
+My Heart moves on-screen AI into the physical world. It demonstrates that conversational AI can control real hardware through a robust, decoupled architecture that handles the full pipeline from speech input to physical output.
+
+The software-hardware decoupling (abstract factory for services, UART protocol for Arduino communication) enables **porting to new use cases by swapping prompt and keywords alone:**
+
+- **Museum guide:** load a domain-specific prompt (art history, exhibit descriptions) and gesture keywords (point left, point right, look up)
+- **Child companion:** load a playful prompt (storytelling, educational questions) and expressive gestures (happy wave, sad nod)
+- **Elder care:** load a patient, empathetic prompt (medication reminders, fall detection alerts) and assistive gestures (beckon, point to door)
+
+The core pipeline (VAD → ASR → LLM → keyword routing → UART → servos) remains unchanged. Only the YAML configuration, prompt template, and keyword dictionary are swapped. This **prompt-driven adaptability** is the key product insight: a single embodied interaction platform becomes a family of domain-specific products through configuration rather than reimplementation.
+
+## Real Metrics
+
+- **UART baud rate:** 9600 baud
+- **Dual-DOF resolution:** H90, V120 (horizontal 0–180°, vertical 0–180°)
+- **Servo interpolation step:** 15ms per degree
+- **Context window:** 10 turns (sliding FIFO)
+- **VAD silence threshold:** configurable, typically 300ms
+- **RMS energy threshold:** configurable, typically 0.02 normalized amplitude
+
+---
+
+**My Heart proves that AI can touch the physical world—reliably, locally, and adaptably.**

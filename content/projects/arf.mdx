@@ -1,0 +1,161 @@
+# ARF / Ares Robotics Framework
+
+## Overview
+
+ARF (Ares Robotics Framework) is a universal robot operating system designed with a cloud-edge collaborative architecture. The framework solves the fragmentation of low-level hardware and algorithms by providing a standardized universal control framework and ecosystem foundation.
+
+## Architecture
+
+ARF employs a layered architecture that separates concerns and enables composable decision-making across distributed robotic systems.
+
+### Edge-Plane Architecture
+
+The edge plane consists of six distinct layers, each with specific responsibilities:
+
+**L0: HAL (Hardware Abstraction Layer)**
+- Drivers-as-service architecture over gRPC
+- Crash isolation through Rust/C++ implementation
+- Provides hardware-agnostic interface for upper layers
+
+**L1: RTS (Real-Time Scheduling)**
+- Lock-free SPSC (Single Producer Single Consumer) queue implementation
+- 1 kHz real-time scheduling frequency on PREEMPT_RT kernel
+- Jitter under 100 microseconds for deterministic control
+- Guarantees temporal predictability for time-critical robot operations
+
+**L2: DMS (Data Management System)**
+- Redis/ZeroMQ publish-subscribe architecture
+- Ring-buffer event-triggered recorder
+- Parquet format for cloud synchronization
+- Enables efficient data flow and historical playback
+
+**L3: ACR (Algorithm Container Runtime)**
+- Go runtime with Python containers
+- DAG (Directed Acyclic Graph) execution model
+- Zero-copy shared memory for inter-container communication
+- Isolates algorithm logic from system infrastructure
+
+**L4: DIL (Decision Intelligence Layer)**
+- Python/PyTorch implementation
+- World model for state estimation and prediction
+- py_trees behavior tree for hierarchical task decomposition
+- Highest-priority safety monitor with override capability
+- Autonomous-teleop mode manager
+- LLM task planner for high-level intent interpretation
+
+**L5: App (Application Layer)**
+- FastAPI backend + React frontend
+- User-facing interface for system configuration and monitoring
+- High-level task definition and execution management
+
+### Cloud-Plane Components
+
+The cloud plane provides infrastructure for large-scale robot fleet management and continuous improvement:
+
+- **Data Hub**: Iceberg lakehouse for unified data storage and querying
+- **Converter**: Argo DAG-based data transformation pipeline
+- **Training**: Kubeflow/Ray distributed training with Sim2Real transfer and federated learning
+- **Isaac Sim**: NVIDIA Isaac Sim integration for simulation and synthetic data generation
+- **Evaluation**: Automated model and algorithm performance assessment
+- **Marketplace**: Harbor-based container registry for algorithm sharing and distribution
+- **Fleet Management**: KubeEdge orchestration with OTA A/B deployment for zero-downtime updates
+
+### DIL Three-Layer Composable Decision Architecture
+
+The Decision Intelligence Layer employs a three-tier composable architecture:
+
+**L1: Atomic Algorithm Capabilities**
+- Individual algorithm capabilities packaged as ACR containers
+- Stateless, reusable computation units
+- Examples: object detection, path planning, motion control
+
+**L2: Composable Decision Components**
+- Behavior tree manager for task orchestration
+- Vision search and target tracking
+- Safety monitor with real-time constraint validation
+- Reusable decision primitives that combine L1 capabilities
+
+**L3: Complete Decision Instances**
+- Developer-assembled complete decision systems
+- Application-specific behavior composition
+- Examples: warehouse AMR navigation, manipulation task execution
+
+This composable architecture allows developers to build complex robotic behaviors by combining tested, reusable components rather than writing monolithic control systems from scratch.
+
+## Technical Specifications
+
+### Real-Time Performance
+
+- **Scheduling Frequency**: 1 kHz (1 millisecond cycle time)
+- **Jitter**: < 100 μs (microseconds)
+- **Kernel**: PREEMPT_RT real-time Linux patch
+- **Queue Architecture**: Lock-free SPSC for zero-contention data flow
+
+### Communication Architecture
+
+- **Inter-layer**: gRPC for strongly-typed service calls
+- **Data streaming**: ZeroMQ publish-subscribe for high-throughput sensor data
+- **Cloud sync**: Parquet columnar format for efficient storage and query
+
+### Decision Intelligence Stack
+
+- **Framework**: PyTorch for neural network models
+- **Behavior Trees**: py_trees library for hierarchical task decomposition
+- **World Model**: State estimation and prediction for model-based control
+- **Safety**: Highest-priority monitor with veto authority over all actions
+- **Mode Management**: Seamless transitions between autonomous, teleoperated, and hybrid modes
+- **Task Planning**: LLM integration for natural language task interpretation
+
+## Technology Stack
+
+- **RT Kernel**: PREEMPT_RT Linux
+- **HAL**: Rust / C++ with gRPC service layer
+- **RTS**: Lock-free SPSC queue, 1 kHz scheduling
+- **DMS**: Redis, ZeroMQ, Parquet
+- **ACR**: Go runtime, Python containers, DAG execution, zero-copy shared memory
+- **DIL**: Python, PyTorch, py_trees, LLM integration
+- **App**: FastAPI (backend), React (frontend)
+- **Cloud**: KubeEdge, Kubeflow, Ray, Argo, Harbor, Isaac Sim, Iceberg
+
+## Task Sequence and Data Flywheel
+
+ARF implements a complete data flywheel that continuously improves robot performance:
+
+1. **Task Definition**: User defines high-level task through App layer or LLM natural language interface
+2. **Task Decomposition**: DIL behavior tree breaks down task into executable primitives
+3. **Execution**: RTS schedules algorithm containers at 1 kHz with real-time guarantees
+4. **Data Collection**: DMS records all sensor data, actions, and outcomes to ring buffer
+5. **Cloud Sync**: Event-triggered data upload to Iceberg data hub in Parquet format
+6. **Training**: Distributed training on cloud using real-world data + sim data (Sim2Real)
+7. **Evaluation**: Automated performance assessment against benchmark scenarios
+8. **Deployment**: OTA A/B deployment pushes improved models to fleet with rollback capability
+9. **Continuous Improvement**: Updated algorithms feed back into step 3, closing the loop
+
+This flywheel enables ARF-based robots to continuously learn from deployment experience and improve autonomy over time.
+
+## Value Proposition
+
+ARF addresses the fundamental fragmentation problem in robotics: every robot project rebuilds the same infrastructure stack (hardware abstraction, real-time control, data management, decision logic) from scratch. This fragmentation wastes engineering effort, prevents algorithm reuse, and slows innovation.
+
+ARF provides:
+
+- **Standardized Infrastructure**: Eliminate per-project infrastructure development with a proven, production-ready stack
+- **Hardware Agnosticism**: HAL abstraction enables algorithm portability across different robot platforms
+- **Composable Intelligence**: DIL three-layer architecture allows building complex behaviors from tested, reusable components
+- **Real-Time Guarantees**: PREEMPT_RT + 1 kHz scheduling + sub-100μs jitter ensures deterministic control for safety-critical applications
+- **Ecosystem Foundation**: Marketplace + cloud training + fleet management enable a thriving ecosystem of algorithm providers and robot operators
+- **Continuous Improvement**: Built-in data flywheel turns every robot deployment into a training opportunity
+
+By standardizing the control framework, ARF allows roboticists to focus on differentiated algorithm innovation rather than infrastructure plumbing. The result is faster development cycles, higher-quality algorithms, and a path to continuous autonomous improvement.
+
+## Roadmap
+
+Current ARF implementation focuses on edge-plane core layers (HAL through DIL) with production deployments demonstrating 1 kHz control and sub-100μs jitter on PREEMPT_RT systems. Cloud-plane components are in active development, with Data Hub and Fleet Management entering beta testing.
+
+Future development priorities include:
+
+- Expanded hardware driver library (HAL)
+- Multi-robot coordination primitives (DIL)
+- Federated learning across robot fleets (Cloud Training)
+- Enhanced Sim2Real transfer with domain randomization (Isaac Sim integration)
+- Open marketplace for third-party algorithm contributions

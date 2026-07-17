@@ -1,0 +1,41 @@
+/*
+ * Design tokens for the "Engineering Editorial · Light" Visual_System.
+ *
+ * This file is the single source of truth for the constrained palette,
+ * typography, and font-weight set (Req 8 / Req 9). Tailwind's theme
+ * (tailwind.config.ts) references these custom properties by name so the
+ * token set stays centralized. Imported from app/globals.css.
+ */
+:root {
+  /* --- Color palette (Req 8.1, 9.4) — the sole allowed color set --- */
+  --color-paper: #f5f3ee; /* warm off-white paper background */
+  --color-ink: #1c1c1c; /* primary ink-black text */
+  --color-gray: #6b6b6b; /* secondary gray text */
+  --color-accent: #d97706; /* single amber/ember accent, used sparingly */
+  --color-grid: #e5e2dc; /* near-invisible baseline grid lines */
+
+  /* --- Font weights (Req 8.7) — exactly three weights --- */
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-bold: 700;
+
+  /*
+   * --- Typefaces (Req 8.3–8.6) ---
+   * display: grotesque/serif for English display text — explicitly NOT Inter.
+   * body-en: clean sans for English body text.
+   * mono:    monospace for technical annotations, numbers, protocol frames.
+   * zh:      Source Han Sans / Source Han Serif for Chinese text.
+   *
+   * Each stack ends in a generic family so the system degrades gracefully
+   * when a preferred face is unavailable.
+   */
+  --font-display: 'Space Grotesk', 'Georgia', 'Times New Roman', ui-serif,
+    serif;
+  --font-body-en: 'Helvetica Neue', 'Arial', ui-sans-serif, system-ui,
+    sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', 'Menlo',
+    'Consolas', ui-monospace, monospace;
+  --font-zh: 'Source Han Sans SC', 'Source Han Sans', 'Noto Sans CJK SC',
+    'Source Han Serif SC', 'Source Han Serif', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+}

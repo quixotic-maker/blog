@@ -1,0 +1,21 @@
+# Dependencies
+node_modules
+
+# Testing
+tests
+coverage
+*.test.ts
+*.test.tsx
+__snapshots__
+
+# Development
+.vscode
+.kiro
+
+# Documentation
+website-visual-guide.md
+
+# Configuration files not needed for deployment
+.eslintrc.json
+vitest.config.ts
+tsconfig.tsbuildinfo
